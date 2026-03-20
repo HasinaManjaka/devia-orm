@@ -1,8 +1,13 @@
-import { Database } from './Database';
-import { QueryBuilder } from './QueryBuilder';
-import { FindOptions, UpdateOptions, DestroyOptions, IncludeOption } from './Types';
-import { MetadataStorage } from '../utils/MetadataStorage';
-import { Relation } from './Relations';
+import { Database } from "./Database";
+import { QueryBuilder } from "./QueryBuilder";
+import {
+  FindOptions,
+  UpdateOptions,
+  DestroyOptions,
+  IncludeOption,
+} from "./Types";
+import { MetadataStorage } from "../utils/MetadataStorage";
+import { Relation } from "./Relations";
 
 /**
  * Model class to build the models
@@ -44,12 +49,16 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async findAll<M extends typeof Model>(
     this: M,
-    options?: FindOptions<InstanceType<M> extends Model<infer T> ? T : any>
+    options?: FindOptions<InstanceType<M> extends Model<infer T> ? T : any>,
   ): Promise<Array<InstanceType<M> extends Model<infer T> ? T : any>> {
     const tableName = this.getTableName();
     const include = options?.include || [];
     const joins = this.buildJoins(include);
-    const { sql, params } = QueryBuilder.buildSelect(tableName, options || {}, joins);
+    const { sql, params } = QueryBuilder.buildSelect(
+      tableName,
+      options || {},
+      joins,
+    );
     const result = await this.db.execute(sql, params);
     return this.mapIncludes(result.rows, include);
   }
@@ -81,8 +90,8 @@ export abstract class Model<_T extends Record<string, any>> {
   private static extractNested(row: any, alias: string): any {
     const nested: any = {};
     for (const key of Object.keys(row)) {
-      if (key.startsWith(alias + '_')) {
-        const nestedKey = key.replace(alias + '_', '');
+      if (key.startsWith(alias + "_")) {
+        const nestedKey = key.replace(alias + "_", "");
         nested[nestedKey] = row[key];
         delete row[key];
       }
@@ -98,7 +107,7 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async findOne<M extends typeof Model>(
     this: M,
-    options?: FindOptions<InstanceType<M> extends Model<infer T> ? T : any>
+    options?: FindOptions<InstanceType<M> extends Model<infer T> ? T : any>,
   ): Promise<(InstanceType<M> extends Model<infer T> ? T : any) | null> {
     const limitedOptions = { ...options, limit: 1 };
     const results = await this.findAll(limitedOptions);
@@ -113,7 +122,7 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async findByPk<M extends typeof Model>(
     this: M,
-    id: number | string
+    id: number | string,
   ): Promise<(InstanceType<M> extends Model<infer T> ? T : any) | null> {
     return this.findOne({ where: { id } as any });
   }
@@ -126,9 +135,9 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async create<M extends typeof Model>(
     this: M,
-    data: Omit<InstanceType<M> extends Model<infer T> ? T : any, 'id'> & {
+    data: Omit<InstanceType<M> extends Model<infer T> ? T : any, "id"> & {
       id?: number | string;
-    }
+    },
   ): Promise<InstanceType<M> extends Model<infer T> ? T : any> {
     const tableName = this.getTableName();
     const { sql, params } = QueryBuilder.buildInsert(tableName, data);
@@ -146,7 +155,7 @@ export abstract class Model<_T extends Record<string, any>> {
   public static async update<M extends typeof Model>(
     this: M,
     data: Partial<InstanceType<M> extends Model<infer T> ? T : any>,
-    options: UpdateOptions<InstanceType<M> extends Model<infer T> ? T : any>
+    options: UpdateOptions<InstanceType<M> extends Model<infer T> ? T : any>,
   ): Promise<number> {
     const tableName = this.getTableName();
     const { sql, params } = QueryBuilder.buildUpdate(tableName, data, options);
@@ -162,11 +171,14 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async destroy<M extends typeof Model>(
     this: M,
-    options: DestroyOptions<any>
+    options: DestroyOptions<any>,
   ): Promise<number> {
     const tableName = this.getTableName();
     if ((this as any).softDelete) {
-      return this.update({ deletedAt: new Date().toISOString() } as any, options);
+      return this.update(
+        { deletedAt: new Date().toISOString() } as any,
+        options,
+      );
     }
     const { sql, params } = QueryBuilder.buildDelete(tableName, options);
     const result = await this.db.execute(sql, params);
@@ -181,14 +193,14 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async count<M extends typeof Model>(
     this: M,
-    options?: FindOptions<InstanceType<M> extends Model<infer T> ? T : any>
+    options?: FindOptions<InstanceType<M> extends Model<infer T> ? T : any>,
   ): Promise<number> {
     const tableName = this.getTableName();
-    let sql = 'SELECT COUNT(*) as count FROM ' + tableName;
+    let sql = "SELECT COUNT(*) as count FROM " + tableName;
     const params: any[] = [];
     if (options?.where) {
       const whereClause = QueryBuilder.buildWhereClause(options.where, params);
-      if (whereClause) sql += ' WHERE ' + whereClause;
+      if (whereClause) sql += " WHERE " + whereClause;
     }
     const result = await this.db.execute(sql, params);
     return result.rows[0]?.count || 0;
@@ -202,28 +214,34 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async sync<M extends typeof Model>(
     this: M,
-    options: { force?: boolean } = {}
+    options: { force?: boolean } = {},
   ): Promise<void> {
     const tableName = this.getTableName();
     const metadata = MetadataStorage.getTableMetadata(this);
     if (!metadata || metadata.columns.size === 0) {
-      throw new Error('No columns defined for model ' + this.name + '. Use @Column decorators.');
+      throw new Error(
+        "No columns defined for model " +
+          this.name +
+          ". Use @Column decorators.",
+      );
     }
     if (options.force) {
-      await this.db.execute('DROP TABLE IF EXISTS ' + tableName);
+      await this.db.execute("DROP TABLE IF EXISTS " + tableName);
     }
-    const columns = Array.from(metadata.columns.entries()).map(([name, col]) => ({
-      name: col.name || name,
-      type: col.type,
-      primaryKey: col.primaryKey,
-      autoIncrement: col.autoIncrement,
-      nullable: col.nullable,
-      unique: col.unique,
-      defaultValue: col.defaultValue,
-    }));
+    const columns = Array.from(metadata.columns.entries()).map(
+      ([name, col]) => ({
+        name: col.name || name,
+        type: col.type,
+        primaryKey: col.primaryKey,
+        autoIncrement: col.autoIncrement,
+        nullable: col.nullable,
+        unique: col.unique,
+        defaultValue: col.defaultValue,
+      }),
+    );
     const createTableSql = QueryBuilder.buildCreateTable(tableName, columns);
     await this.db.execute(createTableSql);
-    console.log('[Model] Table ' + tableName + ' synchronized');
+    console.log("[Model] Table " + tableName + " synchronized");
   }
 
   /**
@@ -233,8 +251,8 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async drop<M extends typeof Model>(this: M): Promise<void> {
     const tableName = this.getTableName();
-    await this.db.execute('DROP TABLE IF EXISTS ' + tableName);
-    console.log('[Model] Table ' + tableName + ' dropped');
+    await this.db.execute("DROP TABLE IF EXISTS " + tableName);
+    console.log("[Model] Table " + tableName + " dropped");
   }
 
   /**
@@ -244,8 +262,20 @@ export abstract class Model<_T extends Record<string, any>> {
    */
   public static async truncate<M extends typeof Model>(this: M): Promise<void> {
     const tableName = this.getTableName();
-    await this.db.execute('DELETE FROM ' + tableName);
-    console.log('[Model] Table ' + tableName + ' truncated');
+    await this.db.execute("DELETE FROM " + tableName);
+    console.log("[Model] Table " + tableName + " truncated");
+  }
+
+  /**
+   * Using raw sql instead of query builder function
+   */
+  public static async raw(
+    this: typeof Model,
+    sql: string,
+    params?: any[],
+  ): Promise<any> {
+    const result = await this.db.execute(sql, params);
+    return result.rows;
   }
 
   /**
@@ -262,21 +292,23 @@ export abstract class Model<_T extends Record<string, any>> {
       foreignKey: string;
       as?: string;
       targetKey?: string;
-      onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
-    }
+      onDelete?: "CASCADE" | "SET NULL" | "RESTRICT";
+    },
   ) {
     this.ensureOwnRelations();
     const alias = options.as || targetModel.name.toLowerCase();
     if (this.relations!.has(alias))
-      throw new Error('Relation alias "' + alias + '" already exists on ' + this.name);
+      throw new Error(
+        'Relation alias "' + alias + '" already exists on ' + this.name,
+      );
     this.validateRelation(targetModel, options.foreignKey);
     this.relations!.set(alias, {
-      type: 'hasMany',
+      type: "hasMany",
       model: targetModel,
       foreignKey: options.foreignKey,
       targetKey: options.targetKey || this.getPrimaryKey(),
       as: alias,
-      onDelete: options.onDelete || 'RESTRICT',
+      onDelete: options.onDelete || "RESTRICT",
     });
   }
 
@@ -294,20 +326,22 @@ export abstract class Model<_T extends Record<string, any>> {
       foreignKey: string;
       as?: string;
       targetKey?: string;
-      onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
-    }
+      onDelete?: "CASCADE" | "SET NULL" | "RESTRICT";
+    },
   ) {
     this.ensureOwnRelations();
     const alias = options.as || targetModel.name.toLowerCase();
     if (this.relations!.has(alias))
-      throw new Error('Relation alias "' + alias + '" already exists on ' + this.name);
+      throw new Error(
+        'Relation alias "' + alias + '" already exists on ' + this.name,
+      );
     this.relations!.set(alias, {
-      type: 'belongsTo',
+      type: "belongsTo",
       model: targetModel,
       foreignKey: options.foreignKey,
       targetKey: options.targetKey || this.getPrimaryKey(),
       as: alias,
-      onDelete: options.onDelete || 'RESTRICT',
+      onDelete: options.onDelete || "RESTRICT",
     });
   }
 
@@ -325,20 +359,22 @@ export abstract class Model<_T extends Record<string, any>> {
       foreignKey: string;
       as?: string;
       targetKey?: string;
-      onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
-    }
+      onDelete?: "CASCADE" | "SET NULL" | "RESTRICT";
+    },
   ) {
     this.ensureOwnRelations();
     const alias = options.as || targetModel.name.toLowerCase();
     if (this.relations!.has(alias))
-      throw new Error('Relation alias "' + alias + '" already exists on ' + this.name);
+      throw new Error(
+        'Relation alias "' + alias + '" already exists on ' + this.name,
+      );
     this.relations!.set(alias, {
-      type: 'hasOne',
+      type: "hasOne",
       model: targetModel,
       foreignKey: options.foreignKey,
       targetKey: options.targetKey || this.getPrimaryKey(),
       as: alias,
-      onDelete: options.onDelete || 'RESTRICT',
+      onDelete: options.onDelete || "RESTRICT",
     });
   }
 
@@ -356,26 +392,28 @@ export abstract class Model<_T extends Record<string, any>> {
       foreignKey: string;
       as?: string;
       targetKey?: string;
-      onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
-    }
+      onDelete?: "CASCADE" | "SET NULL" | "RESTRICT";
+    },
   ) {
     this.ensureOwnRelations();
     const alias = options.as || targetModel.name.toLowerCase();
     if (this.relations!.has(alias))
-      throw new Error('Relation alias "' + alias + '" already exists on ' + this.name);
+      throw new Error(
+        'Relation alias "' + alias + '" already exists on ' + this.name,
+      );
     this.relations!.set(alias, {
-      type: 'manyToMany',
+      type: "manyToMany",
       model: targetModel,
       foreignKey: options.foreignKey,
       targetKey: options.targetKey || this.getPrimaryKey(),
       as: alias,
-      onDelete: options.onDelete || 'RESTRICT',
+      onDelete: options.onDelete || "RESTRICT",
     });
   }
 
   private static ensureOwnRelations(this: typeof Model) {
     if (
-      !Object.prototype.hasOwnProperty.call(this, 'relations') ||
+      !Object.prototype.hasOwnProperty.call(this, "relations") ||
       !(this.relations instanceof Map)
     ) {
       this.relations = new Map<string, Relation>();
@@ -387,7 +425,10 @@ export abstract class Model<_T extends Record<string, any>> {
     return this.relations!;
   }
 
-  public static getRelation(this: typeof Model, alias: string): Relation | undefined {
+  public static getRelation(
+    this: typeof Model,
+    alias: string,
+  ): Relation | undefined {
     this.ensureOwnRelations();
     return this.relations!.get(alias);
   }
@@ -395,31 +436,44 @@ export abstract class Model<_T extends Record<string, any>> {
   private static validateRelation(
     this: typeof Model,
     targetModel: typeof Model,
-    foreignKey: string
+    foreignKey: string,
   ) {
     const metadata = MetadataStorage.getTableMetadata(targetModel);
     if (!metadata || !metadata.columns.has(foreignKey)) {
       throw new Error(
-        'Foreign key "' + foreignKey + '" does not exist on model ' + targetModel.name
+        'Foreign key "' +
+          foreignKey +
+          '" does not exist on model ' +
+          targetModel.name,
       );
     }
   }
 
   protected static getPrimaryKey(this: typeof Model): string {
     const metadata = MetadataStorage.getTableMetadata(this);
-    if (!metadata) throw new Error('No metadata found for model ' + this.name);
-    const primaryColumn = Array.from(metadata.columns.values()).find((col) => col.primaryKey);
-    if (!primaryColumn) throw new Error('Model ' + this.name + ' must define a primary key.');
+    if (!metadata) throw new Error("No metadata found for model " + this.name);
+    const primaryColumn = Array.from(metadata.columns.values()).find(
+      (col) => col.primaryKey,
+    );
+    if (!primaryColumn)
+      throw new Error("Model " + this.name + " must define a primary key.");
     return primaryColumn.name;
   }
 
-  private static buildJoins(this: typeof Model, includes: IncludeOption[], parentAlias?: string) {
+  private static buildJoins(
+    this: typeof Model,
+    includes: IncludeOption[],
+    parentAlias?: string,
+  ) {
     const joins: any[] = [];
     for (const inc of includes) {
       const alias = inc.as;
       if (!alias) throw new Error('Include must define "as"');
       const relation = this.getRelations().get(alias);
-      if (!relation) throw new Error('Relation "' + alias + '" not found on model ' + this.name);
+      if (!relation)
+        throw new Error(
+          'Relation "' + alias + '" not found on model ' + this.name,
+        );
       joins.push({
         type: relation.type,
         sourceTable: parentAlias || this.getTableName(),
