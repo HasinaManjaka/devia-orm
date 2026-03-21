@@ -117,14 +117,15 @@ export abstract class Model<_T extends Record<string, any>> {
   /**
    * Find by primary key
    * @param this
-   * @param id
+   * @param primaryKeyValue
    * @returns
    */
   public static async findByPk<M extends typeof Model>(
     this: M,
-    id: number | string,
+    primaryKeyValue: number | string,
   ): Promise<(InstanceType<M> extends Model<infer T> ? T : any) | null> {
-    return this.findOne({ where: { id } as any });
+    const primaryKey = this.getPrimaryKey();
+    return this.findOne({ where: { [primaryKey]: primaryKeyValue } as any });
   }
 
   /**
@@ -265,7 +266,6 @@ export abstract class Model<_T extends Record<string, any>> {
     await this.db.execute("DELETE FROM " + tableName);
     console.log("[Model] Table " + tableName + " truncated");
   }
-
   /**
    * Using raw sql instead of query builder function
    */
@@ -452,6 +452,7 @@ export abstract class Model<_T extends Record<string, any>> {
   protected static getPrimaryKey(this: typeof Model): string {
     const metadata = MetadataStorage.getTableMetadata(this);
     if (!metadata) throw new Error("No metadata found for model " + this.name);
+    // console.log('metadata', metadata);
     const primaryColumn = Array.from(metadata.columns.values()).find(
       (col) => col.primaryKey,
     );
