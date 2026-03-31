@@ -1,3 +1,4 @@
+This needs an update but i can't afford it now
 # Devia ORM
 
 Une ORM TypeScript légère et moderne pour Expo SQLite, inspirée de Sequelize.
